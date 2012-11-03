@@ -1,0 +1,34 @@
+<html>
+  <head>
+    <script>
+      var fetchFreq = 30000; // how often we fetch new annotations (30s)
+      var req; // request object
+      var unreadCount = 0; // how many unread annotations we have
+      var annotations; // all currently fetched annotations
+
+      getAnnotations();
+      setInterval(getAnnotations, fetchFreq);
+
+      function getAnnotations() {
+        req = new XMLHttpRequest();
+        req.open('GET', 'http://localhost:5000/cse_annotations.json');
+        req.onload = processAnnotations;
+        req.send();
+      }
+
+      // process new batch of annotations
+      function processAnnotations() {
+        var res = JSON.parse(req.responseText);
+        unreadCount += res.length;
+
+        if (unreadCount > 0) {
+          chrome.browserAction.setBadgeBackgroundColor({
+            color: [255, 0, 0, 255]
+          });
+          chrome.browserAction.setBadgeText({text: '' + unreadCount});
+        }
+        annotations = res.concat(annotations);
+      }
+    </script>
+  </head>
+</html>
