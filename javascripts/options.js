@@ -7,25 +7,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function saving() {
   console.log('saving');
-  var varsafe = true;	
-
-  if (false) { 
-    alert("Numeric Values Only!");
-    varsafe = false;
-  }
-
-  if (varsafe == true) {
-    localStorage.framerate = framerate;
-    localStorage.animtime = animtime;
-    localStorage.scrollsz = scrollsz;
+  if (document.getElementById("api_key").value.length > 0) {
+    localStorage.cse_api_url = document.getElementById("api_url").value;
+    localStorage.cse_api_key = document.getElementById("api_key").value;
 
     var saving = document.getElementById("saving");
     saving.innerHTML = "Settings saved!";
-    var message = document.getElementById("message");
-    message.innerHTML = "<a href=\"#\" onclick=\"reload()\">Reload this page and test the new scroll settings!</a>";
-      setTimeout(function() {
-      saving.innerHTML = "&nbsp;";
-    }, 1500);
+  } else {
+    alert("A valid API KEY is required to use this add on");
   }
 }
 
@@ -34,10 +23,10 @@ function reload() {
 }
 function init() {
   console.log('init');
-  //Fixes a strange bug
-  if(keyboardsupport == "true") {
-    document.getElementById('keyboardsupport').checked = true;
-  }
+  // TODO: Might need this later to implement a keyboard short cut
+  // if(keyboardsupport == "true") {
+  //   document.getElementById('keyboardsupport').checked = true;
+  // }
 }
 
 function get_manifest(callback){
