@@ -4,26 +4,13 @@ CSE.item;
 
 jQuery(document).ready(function($) {
   
-  loadEventHandlers();
-  
-  function loadEventHandlers() {
-    $('.close').live('click', function(e) {
-      console.log("I been clicked!");
-      e.preventDefault();
-      
-      $(this).parent().hide();
-    });
-  }
-  // initialize timeline template
+  setupHandlers();
+
   function init() {
     console.log('init');
 
     chrome.browserAction.setBadgeText({text: ''});
-    
-    CSE.api_url = localStorage.cse_api_url || 'http://localhost:5000/';
-    CSE.api_key = localStorage.cse_api_key;
-    
-    if (!CSE.api_key) { displayMessage('Please add a valid API KEY.', 'notice'); return false; }
+    getConfig();
     
     CSE.template = $('#template')
     CSE.about = $('.about');
@@ -34,27 +21,93 @@ jQuery(document).ready(function($) {
     CSE.req; // request object
     CSE.unreadCount = 0; // how many unread annotations we have
 
+    displayEngineList();
+    getTargetUrl();
+    setupTagsInput();
+    // getAnnotations();
+  }
+  
+  init();
+
+  function setupHandlers() {
+    $('.close_window').click(function(e) {
+      window.close();
+    });
+    
+    $('.close').live('click', function(e) {
+      e.preventDefault();
+      $(this).parent().hide();
+    });
+    
+    $("#messages").ajaxError(function(event, request, settings){
+      displayMessage("Error requesting page: " + settings.url, 'error');
+      $('.loading').hide();
+    });
+    
+    $('#edit_engine').on('click', function(e) {
+      if($('#engine :selected').length > 0) {
+        console.log($('#engine :selected').val() + ' selected');
+        _getJSON(urlFor('engines/' + $('#engine :selected').val()), function(result) {
+          console.log('result: ' + result);
+        });
+      }
+    });
+    $('#engine_id').on('change', function(e) {
+      console.log($('#engine_id :selected').val() + ' selected');
+    
+      _getJSON(urlFor('engines/' + $('#engine_id :selected').val() + '.json'), function(res) {
+        $('.tags_input').importTags('');
+        $.each(res.tags, function(i, tag) {
+          $('.tags_input').addTag(tag.name);
+        });
+      });
+    });
+
+    $('form#create_annotation').on('submit', function(e) {
+      e.preventDefault();
+      
+      $(this).attr('disabled', 'true');
+      $('.loading', this).show();
+      
+      var self = this;
+      _postJSON(urlFor("engines/create_annotation"), $(this).serialize(), function(data) {
+        console.log(data);
+        $(this).removeAttr('disabled');
+        $('.loading', self).hide();
+        
+        $('input:text,textarea', self).val('');
+        $('.messages', self).empty();
+      
+        displayMessage('Created annotation for: ' + data.about, 'notice');
+      });
+
+      return false;
+    });
+  }
+  
+  function setupTagsInput() {
+    $('.tags_input').tagsInput({    
+      autocomplete_url:'http://localhost:5000/tags/autocomplete'
+    });
+  }
+  
+  function displayEngineList() {
     _getJSON(urlFor('engines.json'), function(res) {
       $.each(res, function(i, engine) {
         var el = $('<option value="' + engine._id + '">' + engine.name + '</option>');
         $('#engine_id').append(el);
       });
     }, 'json');
-
-    getTargetUrl();
-    
-    $('.tags_input').tagsInput({    
-      autocomplete_url:'http://localhost:5000/tags/autocomplete'
-    });
-    
-    // getAnnotations();
   }
   
-  init();
-
+  function getConfig() {
+    CSE.api_url = localStorage.cse_api_url || 'http://localhost:5000/';
+    CSE.api_key = localStorage.cse_api_key;
+    if (!CSE.api_key) { displayMessage('Please add a valid API KEY.', 'notice'); return false; }
+  }
+  
   function getTargetUrl() {
-    chrome.tabs.query(
-      {
+    chrome.tabs.query({
         active: true,                              // Select active tabs
         windowId: chrome.windows.WINDOW_ID_CURRENT // In the current window
       }, 
@@ -77,6 +130,7 @@ jQuery(document).ready(function($) {
   
   function getAnnotations() {
     console.log('get annoations');
+    
     CSE.req = new XMLHttpRequest();
     CSE.req.open('GET', 'http://localhost:5000/cse_annotations.json');
     CSE.req.onload = processAnnotations;
@@ -88,8 +142,6 @@ jQuery(document).ready(function($) {
     console.log('process annoations');
 
     CSE.res = JSON.parse(CSE.req.responseText);
-    console.log(CSE.res);
-    
     CSE.unreadCount += CSE.res.length;
 
     if (CSE.unreadCount > 0) {
@@ -99,89 +151,30 @@ jQuery(document).ready(function($) {
       chrome.browserAction.setBadgeText({text: '' + CSE.unreadCount});
     }
     CSE.annotations = CSE.res.concat(CSE.annotations);
-    update();
+    displayAnnotations();
   }
-  // onload = setTimeout(init, 0); // workaround for http://crbug.com/24467
 
-  // update display
-  function update() {
-    console.log('update');
+  function displayAnnotations() {
+    console.log('displayAnnotations');
+    
     var about = CSE.about[0].cloneNode(),
         directive = CSE.directive[0].cloneNode(), 
-        comment = CSE.comment[0].cloneNode();
+        comment = CSE.comment[0].cloneNode(),
+        annotation_root = $('<div/>');
     
     console.log(CSE.annotations);
     for (var i in CSE.annotations) {
       // author.href = openInNewTab(url);
       
-      CSE.annotation_root = $('<div/>');
       about.innerHTML = CSE.annotations[i].about;
       directive.innerHTML = CSE.annotations[i].directive;
       comment.innerHTML = CSE.annotations[i].comment;
 
-      console.log('Annotation HTML: ');
-      console.log('  : '+ CSE.annotation_root.html());
-
-      // copy node and update
-      CSE.item = CSE.annotation_root.append(about).append(directive).append(comment);
-      console.log('Item: ' + CSE.item.html());
+      annotation_root.append(about).append(directive).append(comment);
+      console.log('Item: ' + annotation_root.html());
       $('.annotations').append(CSE.item);
     }
   }
-  $('#edit_engine').on('click', function(e) {
-    if($('#engine :selected').length > 0) {
-      console.log($('#engine :selected').val() + ' selected');
-      _getJSON(urlFor('engines/' + $('#engine :selected').val()), function(result) {
-        console.log('result: ' + result);
-      });
-    }
-  });
-  $('#engine_id').on('change', function(e) {
-    console.log($('#engine_id :selected').val() + ' selected');
-    
-    _getJSON(urlFor('engines/' + $('#engine_id :selected').val() + '.json'), function(res) {
-      $('.tags_input').importTags('');
-      $.each(res.tags, function(i, tag) {
-        $('.tags_input').addTag(tag.name);
-      });
-    });
-  });
-
-  $('form#create_annotation').on('submit', function(e) {
-    e.preventDefault();
-    $.ajax(
-      urlFor("engines/create_annotation"),
-      {
-        type: "post",
-        data: jQuery('form#create_annotation').serialize(),
-        dataType: "json"
-      }
-      ).success( function (data) {
-        console.log(data);
-        var el = jQuery('form#create_annotation');
-
-        el.find('input:text,textarea').val('');
-        el.find('.errors').empty();
-        
-        displayMessage('Created annotation for: ' + data.about);
-      }
-    ).error( function (data) {
-      var error_list = jQuery.parseJSON(data.responseText);
-      var el = jQuery('#new_business');
-      
-      // Create a list of errors
-      var errors = jQuery('<ul />');
-      errors.append('<li>Could not save for the following reasons:</li>');
-
-      jQuery.each(error_list, function(i,value) {
-        errors.append('<li>' + value + '</li>');
-      });
-
-      // Display errors on form
-      el.find('.errors').html(errors);
-    });
-    return false;
-  });
 });
 
 // parseUri 1.2.2

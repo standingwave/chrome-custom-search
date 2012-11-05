@@ -2,6 +2,13 @@ ROUTER = {
   'engines': 'engines.json'
 }
 
+function _postJSON(url, data, callback) {
+  console.log('post some json: ' + url);
+  $.post(url, data, function(result) {
+    callback(result);
+  });
+}
+
 function _getJSON(url, callback) {
   console.log('get some json: ' + url);
   $.get(url, function(result) {
@@ -15,7 +22,7 @@ function displayMessage(msg, msg_type) {
     '<div id="flash_notice">' + msg + '</div>' +
   '</div>'
   
-  $('#messages').html(html).show();
+  $('#messages').html(html).slideDown(1000);
 }
 
 function urlFor(options) {
